@@ -13,24 +13,21 @@ def getPieces():
 def readPieces():
   # Array of tuples to create a dataframe later
   frames = []
+  # Initiate time
+  time = 0
   # Get pieces and iterate over them
   for piece in getPieces():
-    # Check if frames is not empty
-    if frames:
-      # Get the time of the end of last note 
-      time = frames[-1]['off'].values[-1]
-      # Get the dataframe (send starting time as well) of the piece and append it to frames
-      frames.append(readNotes(piece, time))
-    else:
-      # Get the dataframe and append it to frames
-      frames.append(readNotes(piece))
+    # Get the dataframe and length of the piece 
+    df, time = readNotes(piece, time)
+    # Append the dataframe to frames
+    frames.append(df)
 
   # Concatenate all the datarames into one
-  df = pd.concat(frames)
-  df.to_csv('music.csv', index=False)
+  dfAll = pd.concat(frames)
+  dfAll.to_csv('music.csv', index=False)
 
-def isAnyHand(trackName):
-  if trackName == 'Piano right' or trackName == 'Piano left':
+def isAnyHandOrPedal(trackName):
+  if trackName == 'Piano right' or trackName == 'Piano left' or trackName == 'Pedal':
     return True
   else:
     return False
@@ -38,10 +35,10 @@ def isAnyHand(trackName):
 def getHandNumber(trackName):
   if trackName == 'Piano right':
     return 1
-  elif trackName == 'Piano left':
+  elif trackName == 'Piano left' or trackName == 'Pedal':
     return 0
   else:
-    print('ERROR. No hand returned: return 0 for "Piano left" and 1 for "Piano right"'
+    print('ERROR. No hand returned: return 0 for "Piano left" or "Pedal" and 1 for "Piano right"')
 
 def loadPieces():
   return pd.read_csv('music.csv', index_col=False)
@@ -55,54 +52,72 @@ def readNotes(piece, time=0):
   onRight = np.zeros(128, dtype=int)
   # Read the file
   midi = mido.MidiFile(piece)
-  # Do not start adding the notes until they started
+  # Time will have to be reordered for different hand notes
   notesStarted = False
-  # Time will have to be reordered for left hand notes
-  leftNotesStarted = False
+  # Initiate right and left hand side times
+  rightMaxTime = 0
+  leftMaxTime = 0
+  # Initiate piece length
+  pieceLength = 0
+  # Set start time
+  startTime = time
 
   # Get the tracks and iterate over them
   for track in midi.tracks:
-    # Iterate over the messages in the track
-    for msg in track:
-      # Check if the notes belong to any hand
-      if (isAnyHand(track.name)):
-        # Check if the notes started
-        if notesStarted:
-          # Add the time of messages to the overall time
+    # Check if the notes belong to any hand
+    if (isAnyHandOrPedal(track.name)):
+      # Iterate over the messages in the track
+      for msg in track:
+        # Add the time of messages to the overall time
+        # Check if notes have started
+        if notesStarted: 
           time = time + msg.time
+        # Get the hand number (0 - left, 1 - right)
+        hand = getHandNumber(track.name)
         # Check if it is a note message
         if msg.type == 'note_on':
-          # Set notesStarted to true
-          notesStarted = True
-          # Get the hand number (0 - left, 1 - right)
-          hand = getHandNumber(track.name)
+          # Check if notes have started
+          if not notesStarted: 
+            # Start the time from beginning in this case
+            time = startTime + msg.time
+            # Set that notes started
+            notesStarted = True
           # Check if it was pressed 
           if msg.velocity > 0:
-            # Check which hand (0 - left, 1 - right)
+           # Check which hand (0 - left, 1 - right)
             if hand:
               # If it was pressed, get the time of this action
               onRight[msg.note] = time
             else:
-              # Check if left hand side notes have started
-              if not leftNotesStarted: 
-                # Start the time from beginning in this case
-                time = msg.time
-                # Set that the left hand side notes started
-                leftNotesStarted = True
               onLeft[msg.note] = time
           # Check if it was released
           elif msg.velocity == 0:
+            # Initiate start
             start = 0
             if hand:
               # Just a safety check to ensure it was pressed before
-              if onRight[msg.note]:
-                start = onRight[msg.note]
-                # Unpress the note
-                onRight[msg.note] = 0
+              if not onRight[msg.note]:
+                continue
+              # Set start 
+              start = onRight[msg.note]
+              # If time is more than max, set max to this time
+              if time > rightMaxTime:
+                rightMaxTime = time
+              # Unpress the note
+              onRight[msg.note] = 0
             else:
-              if onLeft[msg.note]:
-                start = onLeft[msg.note]
-                onLeft[msg.note] = 0
+              if not onLeft[msg.note]:
+                continue
+              start = onLeft[msg.note]
+              if time > leftMaxTime:
+                leftMaxTime = time
+              onLeft[msg.note] = 0
+
+            # Update the piece length
+            if leftMaxTime > rightMaxTime and leftMaxTime > time:
+              pieceLength = leftMaxTime
+            elif rightMaxTime > leftMaxTime and rightMaxTime > time:
+              pieceLength = rightMaxTime
 
             # Get the length of the note
             length = time - start
@@ -112,7 +127,10 @@ def readNotes(piece, time=0):
               # Append a note
               data.append((msg.note, start, time, length, hand))
 
-  return pd.DataFrame(data, columns=['pitch', 'on', 'off', 'length', 'hand'])
+      # After the end of the track, set notesStarted to false        
+      notesStarted = False
+
+  return pd.DataFrame(data, columns=['pitch', 'on', 'off', 'length', 'hand']), pieceLength
 
 def toStateMatrix(df):
   length = df['off'].values[-1]
