@@ -40,7 +40,9 @@ def getHandNumber(trackName):
   else:
     print('ERROR. No hand returned: return 0 for "Piano left" or "Pedal" and 1 for "Piano right"')
 
-def loadPieces():
+def loadPieces(force=False):
+  if force:
+    readNotes(readPieces)
   return pd.read_csv('music.csv', index_col=False)
 
 def readNotes(piece, time=0):
@@ -95,9 +97,6 @@ def readNotes(piece, time=0):
             # Initiate start
             start = 0
             if hand:
-              # Just a safety check to ensure it was pressed before
-              if not onRight[msg.note]:
-                continue
               # Set start 
               start = onRight[msg.note]
               # If time is more than max, set max to this time
@@ -106,8 +105,6 @@ def readNotes(piece, time=0):
               # Unpress the note
               onRight[msg.note] = 0
             else:
-              if not onLeft[msg.note]:
-                continue
               start = onLeft[msg.note]
               if time > leftMaxTime:
                 leftMaxTime = time
