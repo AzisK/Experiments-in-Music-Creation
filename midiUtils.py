@@ -86,35 +86,43 @@ def readNotes(piece, time=0):
             notesStarted = True
           # Check if it was pressed 
           if msg.velocity > 0:
-           # Check which hand (0 - left, 1 - right)
+            # Workaround to get truthy value for a note that was pressed at time 0
+            if time == 0:
+              time = -1
+            # Check which hand (0 - left, 1 - right)
             if hand:
               # If it was pressed, get the time of this action
               onRight[msg.note] = time
             else:
               onLeft[msg.note] = time
+            # Bring time back to zero if workaround
+            if time == -1:
+              time = 0
           # Check if it was released
           elif msg.velocity == 0:
             # Initiate start
             start = 0
             if hand:
+              # Just a safety check to ensure it was pressed before
+              if not onRight[msg.note]:
+                continue
               # Set start 
               start = onRight[msg.note]
-              # If time is more than max, set max to this time
-              if time > rightMaxTime:
-                rightMaxTime = time
               # Unpress the note
               onRight[msg.note] = 0
             else:
+              if not onLeft[msg.note]:
+                continue
               start = onLeft[msg.note]
-              if time > leftMaxTime:
-                leftMaxTime = time
               onLeft[msg.note] = 0
 
+            # If workaround, get start to 0
+            if start == -1:
+              start = 0
+
             # Update the piece length
-            if leftMaxTime > rightMaxTime and leftMaxTime > time:
-              pieceLength = leftMaxTime
-            elif rightMaxTime > leftMaxTime and rightMaxTime > time:
-              pieceLength = rightMaxTime
+            if time > pieceLength:
+                pieceLength = time
 
             # Get the length of the note
             length = time - start
