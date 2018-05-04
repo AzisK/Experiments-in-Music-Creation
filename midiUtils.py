@@ -126,28 +126,26 @@ def readNotes(piece, time=0):
 
             # Get the length of the note
             length = time - start
-            # Does not include notes of less than the length of 4 ticks 
-            # or the minimum hearing length
-            if length > 4: 
-              # Append a note
-              data.append((msg.note, start, time, length, hand))
+            # Append a note
+            data.append((msg.note, start, time, length, hand))
 
       # After the end of the track, set notesStarted to false        
       notesStarted = False
 
   return pd.DataFrame(data, columns=['pitch', 'on', 'off', 'length', 'hand']), pieceLength
 
-def toStateMatrix(df):
+def toStateMatrix(df, quant=60):
   length = df['off'].values[-1]
-  stateMatrix = np.zeros((length, 128), dtype=int)
+  steps = int(length / quant)
+  stateMatrix = np.zeros((steps, 128), dtype=int)
   for row in df.itertuples():
       pitch = row[1]
       on = row[2]
       off = row[3]
-      stateMatrix[on : off, pitch] = 1
+      stateMatrix[int((on / quant)) : int((off / quant + 1)), pitch] = 1
   return stateMatrix
 
-def stateToTuples(stateMatrix):
+def state2Tuples(stateMatrix):
   data = []
   notes = np.zeros(128, dtype=int)
   for index, state in enumerate(stateMatrix):
@@ -167,7 +165,7 @@ def stateToTuples(stateMatrix):
   sortedData = sorted(data, key=lambda x: x[-1])
   return sortedData
 
-def tuplesToMidi(messages, filename='Midi.mid'):
+def tuples2Midi(messages, filename='Midi.mid'):
     song = mido.MidiFile()
     track = mido.MidiTrack()
     song.tracks.append(track)
@@ -182,3 +180,23 @@ def tuplesToMidi(messages, filename='Midi.mid'):
         msg.time = delta
         track.append(msg)
     song.save(filename)
+
+def quantize(tick, quant=60):
+    res = tick % quant
+    if res != 0:
+        if res < (quant / 2):
+            tick -= res
+        if res >= (quant / 2):
+            tick += (quant - res)
+    return tick
+
+def findLength(on, off):
+    return off - on
+
+def findLengthForDf(df):
+    df['length'] = df.apply(lambda x: findLength(x['on'], x['off']), axis=1)
+
+def quantizeDf(df, quant):
+    df['on'] = df['on'].apply(lambda x: quantize(x, quant))
+    df['off'] = df['off'].apply(lambda x: quantize(x, quant))
+    findLengthForDf(df)
