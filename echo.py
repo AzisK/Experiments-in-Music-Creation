@@ -26,9 +26,12 @@ def generateNotes(Y, t, y, noteLength):
         y[index] = 0
         noteLength = 0
 
-def predict(minp=0, maxp=127, lr = 0.5, ins = 0.65, sr = 0.75, reg=1, size=1000, noise=0):
+def predict(minp=0, maxp=127, lr = 0.5, ins = 0.65, sr = 0.75, reg=1, size=1000, noises=False):
     inSize = outSize = maxp + 1 - minp
-    resSize = size
+    resSize = int(size)
+    print('Reservoir size is: {}'.format(resSize))
+
+    print('Noise is: {}'.format(noises))
 
     # Pick only the necessary elements
     # data = data[:, minp : maxp + 1]
@@ -66,7 +69,7 @@ def predict(minp=0, maxp=127, lr = 0.5, ins = 0.65, sr = 0.75, reg=1, size=1000,
         inps = np.dot(Win, np.vstack((1, u)))
         x = (1 - lr) * x + lr * np.tanh(inps + np.dot(W, x))
 
-        if noise:
+        if noises:
             noise = np.random.rand(resSize, 1)
             x += noise
 
@@ -96,7 +99,7 @@ def predict(minp=0, maxp=127, lr = 0.5, ins = 0.65, sr = 0.75, reg=1, size=1000,
         inps = np.dot(Win, np.vstack((1, u)))
         x = (1 - lr) * x + lr * np.tanh(inps + np.dot(W, x))
 
-        if noise:
+        if noises:
             noise = np.random.rand(resSize, 1)
             x += noise
 
@@ -105,7 +108,7 @@ def predict(minp=0, maxp=127, lr = 0.5, ins = 0.65, sr = 0.75, reg=1, size=1000,
         # generateNotes(Y, t, y, noteLength)
 
         Y[:, t] = y.transpose()
-        
+
         # GENERATIVE:
         # u = y
 
@@ -141,13 +144,13 @@ def gridSearch():
             for sr in np.linspace(0.2, 2, 4, endpoint=True):
                 for reg in np.logspace(-2, -2, 5, endpoint=True):
                     for size in np.linspace(1000, 2000, 2, endpoint=True):
-                        for noise in np.linspace(0, 1, 2, endpoint=True):
-                        print('*')
-                        print('Calculating the error for:')
-                        print('*** lr={0}, ins={1}, sr={2}, reg={3}, size={3}, noise={4}'.format(lr, ins, sr, reg, size, noise))
+                        for noises in [True, False]:
+                            print('*')
+                            print('Calculating the error for:')
+                            print('*** lr={0}, ins={1}, sr={2}, reg={3}, size={4}, noises={5}'.format(lr, ins, sr, reg, size, noises))
 
-                        gs.append((lr, ins, sr, reg, size, predict(29, 91, lr, ins, sr, reg, size, noise)))
-                        gsd = pd.DataFrame(gs, columns=['lr', 'ins', 'sr', 'reg', 'size', 'noise', 'error'])
+                            gs.append((lr, ins, sr, reg, size, noises, predict(29, 91, lr, ins, sr, reg, size, noises)))
+                            gsd = pd.DataFrame(gs, columns=['lr', 'ins', 'sr', 'reg', 'size', 'noises', 'error'])
 
     print('Grid search done!')
     gsd.to_csv('gridsearch.csv')
