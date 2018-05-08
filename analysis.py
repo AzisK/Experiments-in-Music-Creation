@@ -49,6 +49,11 @@ def getLengthLeftHist():
   plt.hist(mydf['length'], bins=200)
   plt.show()
 
+def getNotesBounds():
+  minp = df['pitch'].min()
+  maxp = df['pitch'].max()
+  print(minp, maxp)
+
 # getNotesHist()
 # getNotesRighHist()
 # getNotesLeftHist()
@@ -57,4 +62,5 @@ def getLengthLeftHist():
 # getLengthRightHist()
 # getLengthLeftHist()
 
-getLengthQuantHist()
+# getLengthQuantHist()
+getNotesBounds()
