@@ -134,15 +134,16 @@ def readNotes(piece, time=0):
 
   return pd.DataFrame(data, columns=['pitch', 'on', 'off', 'length', 'hand']), pieceLength
 
-def toStateMatrix(df, quant=60):
+def toStateMatrix(df, minp=0, maxp=127, quant=60):
   length = df['off'].values[-1]
   steps = int(length / quant)
-  stateMatrix = np.zeros((steps, 128), dtype=int)
+  bounds = maxp + 1 - minp
+  stateMatrix = np.zeros((bounds, steps), dtype=int)
   for row in df.itertuples():
-      pitch = row[1]
+      pitch = row[1] - minp
       on = row[2]
       off = row[3]
-      stateMatrix[int((on / quant)) : int((off / quant + 1)), pitch] = 1
+      stateMatrix[pitch, int(on / quant) : int(off / quant + 1)] = 1
   return stateMatrix
 
 def state2Tuples(stateMatrix):
@@ -181,7 +182,7 @@ def tuples2Midi(messages, filename='Midi.mid'):
         track.append(msg)
     song.save(filename)
 
-def quantize(tick, quant=60):
+def quantize(tick, quant):
     res = tick % quant
     if res != 0:
         if res < (quant / 2):
@@ -193,10 +194,7 @@ def quantize(tick, quant=60):
 def findLength(on, off):
     return off - on
 
-def findLengthForDf(df):
-    df['length'] = df.apply(lambda x: findLength(x['on'], x['off']), axis=1)
-
-def quantizeDf(df, quant):
+def quantizeDf(df, quant=60):
     df['on'] = df['on'].apply(lambda x: quantize(x, quant))
     df['off'] = df['off'].apply(lambda x: quantize(x, quant))
-    findLengthForDf(df)
+    df['length'] = df.apply(lambda x: findLength(x['on'], x['off']), axis=1)
