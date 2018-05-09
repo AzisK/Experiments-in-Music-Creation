@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import midiUtils as mu
 from pathlib import Path
 import pandas as pd
+import numpy as np
 
 def generateCSV(force=False):
   my_file = Path('music.csv')
@@ -54,6 +55,16 @@ def getNotesBounds():
   maxp = df['pitch'].max()
   print(minp, maxp)
 
+def getStats():
+  df = mu.loadPieces()
+  mu.quantizeDf(df)
+  data = mu.toStateMatrix(df, 29, 91)
+
+  mean = data.mean()
+  coldiff = data - np.array([data.mean(1)]).transpose()
+  std = np.mean(np.sqrt(np.square(coldiff)))
+  print("MEAN: {0}, STD: {1}".format(mean, std))
+
 # getNotesHist()
 # getNotesRighHist()
 # getNotesLeftHist()
@@ -63,4 +74,6 @@ def getNotesBounds():
 # getLengthLeftHist()
 
 # getLengthQuantHist()
-getNotesBounds()
+# getNotesBounds()
+
+getStats()
