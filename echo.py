@@ -26,7 +26,7 @@ def generateNotes(Y, t, y, noteLength):
         y[index] = 0
         noteLength = 0
 
-def predict(minp=0, maxp=127, lr = 0.5, ins = 0.65, sr = 0.75, reg=1):
+def predict(minp=0, maxp=127, lr = 0.5, ins = 0.65, sr = 0.75, regs=[1]):
     inSize = outSize = maxp + 1 - minp
     resSize = 1000
     print('Reservoir size is: {}'.format(resSize))
@@ -73,51 +73,57 @@ def predict(minp=0, maxp=127, lr = 0.5, ins = 0.65, sr = 0.75, reg=1):
     print('Iterations done :)')
 
     # Train the output
-    inv = lin.inv(np.dot(X.T, X) + reg * np.eye(1 + inSize + resSize))
-    fdback = np.dot(Yt, X)
+    selfie = np.dot(X.T, X)
+    
+    rers = []
 
-    print('Computing Wout...')
-    Wout = np.dot(fdback, inv)
+    for r in regs:
+        print('Starting testing for regularization={}'.format(r))
 
-    print('Training done!')
+        inv = lin.inv(selfie + r * np.eye(1 + inSize + resSize))
+        fdback = np.dot(Yt, X)
 
-    # Generate output matrix
-    Y = np.zeros((outSize, test))
+        print('Computing Wout...')
+        Wout = np.dot(fdback, inv)
 
-    u = np.array([data[:, train]]).transpose()
+        # Generate output matrix
+        Y = np.zeros((outSize, test))
 
-    # noteLength = 0
+        u = np.array([data[:, train]]).transpose()
 
-    print('Starting testing!')
-    for t in range(test):
-        inps = np.dot(Win, np.vstack((1, u)))
-        x = (1 - lr) * x + lr * np.tanh(inps + np.dot(W, x))
+        # noteLength = 0
 
-        y = np.dot(Wout, np.vstack((1, u, x)))
+        for t in range(test):
+            inps = np.dot(Win, np.vstack((1, u)))
+            x = (1 - lr) * x + lr * np.tanh(inps + np.dot(W, x))
 
-        # generateNotes(Y, t, y, noteLength)
+            y = np.dot(Wout, np.vstack((1, u, x)))
 
-        Y[:, t] = y.transpose()
+            # generateNotes(Y, t, y, noteLength)
 
-        # GENERATIVE:
-        # u = y
+            Y[:, t] = y.transpose()
 
-        # PREDICTIVE:
-        u = np.array([data[:, train + t]]).transpose()
+            # GENERATIVE:
+            # u = y
 
-    print('Testing done!')
+            # PREDICTIVE:
+            u = np.array([data[:, train + t]]).transpose()
 
-    # Compute MEAN, RMSE & STANDARD DEVATION
-    mean = Y.mean()
+        print('Testing done for regularization={} done!'.format(r))
 
-    diff = data[:, train: train + test + 1] - Y[:, 0 : test]
-    se = np.square(diff)
-    rmse = np.mean(np.sqrt(se))
+        # Compute MEAN, RMSE & STANDARD DEVATION
+        mean = Y.mean()
 
-    coldiff = Y - np.array([Y.mean(1)]).transpose()
-    std = np.mean(np.sqrt(np.square(coldiff)))
-    print("MEAN: {0}, RMSE: {1}, STD: {2}".format(mean, rmse, std))
-    return mean, rmse, std
+        diff = data[:, train: train + test + 1] - Y[:, 0 : test]
+        se = np.square(diff)
+        rmse = np.mean(np.sqrt(se))
+
+        coldiff = Y - np.array([Y.mean(1)]).transpose()
+        std = np.mean(np.sqrt(np.square(coldiff)))
+        print("MEAN: {0}, RMSE: {1}, STD: {2}, reg: {3}".format(mean, rmse, std, r))
+        rers.append((r, mean, rmse, std))
+
+    return rers
 
     # OUTPUT
     # return Y.T
@@ -132,16 +138,18 @@ def gridSearch():
     for lr in np.linspace(0.25, 1, 4, endpoint=True):
         for ins in np.linspace(0.2, 2, 4, endpoint=True):
             for sr in np.linspace(0.2, 2, 4, endpoint=True):
-                for reg in np.logspace(-2, 2, 5, endpoint=True):
-                    print('*')
-                    print('Calculating the error for:')
-                    print('*** lr={0}, ins={1}, sr={2}, reg={3}'.format(lr, ins, sr, reg))
-
-                    gs.append((lr, ins, sr, reg, predict(29, 91, lr, ins, sr, reg)))
-                    gsd = pd.DataFrame(gs, columns=['lr', 'ins', 'sr', 'reg', 'error'])
+                print('*')
+                print('Calculating the error for:')
+                print('*** lr={0}, ins={1}, sr={2}'.format(lr, ins, sr))
+                regs = [0.01, 0.1, 1, 10, 100]
+                rers = predict(29, 91, lr, ins, sr, regs)
+                for rer in rers:
+                    reg, mean, rmse, std = rer
+                    gs.append((lr, ins, sr, reg, mean, rmse, std))
+                    gsd = pd.DataFrame(gs, columns=['lr', 'ins', 'sr', 'reg', 'mean', 'rmse', 'std'])
 
     print('Grid search done!')
     gsd.to_csv('gridsearch.csv')
 
 gridSearch()
-# mean, rmse, std = predict(29, 91)
+# rers = predict(29, 91)
