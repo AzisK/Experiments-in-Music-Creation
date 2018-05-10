@@ -3,10 +3,11 @@ import numpy as np
 import pandas as pd
 import scipy.linalg as lin
 import midiUtils as mu
+from pathlib import Path
 
-def predictNotes(y):
+def predictNotes(y, deg):
     for index, value in enumerate(y):
-        if value > np.random.rand():
+        if coldiff[index] > np.power(value, deg):
             y[index] = 1
         else:
             y[index] = 0
@@ -26,7 +27,7 @@ def generateNotes(Y, t, y, noteLength):
         y[index] = 0
         noteLength = 0
 
-def predict(minp=0, maxp=127, lr = 0.5, ins = 0.65, sr = 0.75, regs=[1]):
+def predict(minp=0, maxp=127, lr = 0.75, ins = 0.2, sr = 0.2, regs=[100], degs=(1, 1, 1)):
     inSize = outSize = maxp + 1 - minp
     resSize = 1000
     print('Reservoir size is: {}'.format(resSize))
@@ -72,6 +73,8 @@ def predict(minp=0, maxp=127, lr = 0.5, ins = 0.65, sr = 0.75, regs=[1]):
 
     print('Iterations done :)')
 
+    z = x
+
     # Train the output
     selfie = np.dot(X.T, X)
     
@@ -89,48 +92,48 @@ def predict(minp=0, maxp=127, lr = 0.5, ins = 0.65, sr = 0.75, regs=[1]):
         # Generate output matrix
         Y = np.zeros((outSize, test))
 
-        u = np.array([data[:, train]]).transpose()
+        for deg in np.linspace(degs[0], degs[1], degs[2], endpoint=True):
+            print('Quantizing the notes with the degree of: {}'.format(deg))
 
-        # noteLength = 0
+            u = np.array([data[:, train]]).transpose()
+            # noteLength = 0
 
-        for t in range(test):
-            inps = np.dot(Win, np.vstack((1, u)))
-            x = (1 - lr) * x + lr * np.tanh(inps + np.dot(W, x))
+            for t in range(test):
+                inps = np.dot(Win, np.vstack((1, u)))
 
-            y = np.dot(Wout, np.vstack((1, u, x)))
+                if t == 0:
+                    x = z
 
-            # generateNotes(Y, t, y, noteLength)
+                x = (1 - lr) * x + lr * np.tanh(inps + np.dot(W, x))
 
-            Y[:, t] = y.transpose()
+                y = np.dot(Wout, np.vstack((1, u, x)))
 
-            # GENERATIVE:
-            # u = y
+                predictNotes(y, deg)
 
-            # PREDICTIVE:
-            u = np.array([data[:, train + t]]).transpose()
+                Y[:, t] = y.transpose()
 
-        print('Testing done for regularization={} done!'.format(r))
+                # GENERATIVE:
+                u = y
 
-        # Compute MEAN, RMSE & STANDARD DEVATION
-        mean = Y.mean()
+                # PREDICTIVE:
+                # u = np.array([data[:, train + t]]).transpose()
 
-        diff = data[:, train: train + test + 1] - Y[:, 0 : test]
-        se = np.square(diff)
-        rmse = np.mean(np.sqrt(se))
+            # Compute MEAN, RMSE & STANDARD DEVATION
+            mean = Y.mean()
 
-        coldiff = Y - np.array([Y.mean(1)]).transpose()
-        std = np.mean(np.sqrt(np.square(coldiff)))
-        print("MEAN: {0}, RMSE: {1}, STD: {2}, reg: {3}".format(mean, rmse, std, r))
-        rers.append((r, mean, rmse, std))
+            diff = data[:, train: train + test + 1] - Y[:, 0 : test]
+            se = np.square(diff)
+            rmse = np.mean(np.sqrt(se))
+
+            coldiff = Y - np.array([Y.mean(1)]).transpose()
+            std = np.mean(np.sqrt(np.square(coldiff)))
+            print("MEAN: {0}, RMSE: {1}, STD: {2}, reg: {3}, deg: {4}".format(mean, rmse, std, r, deg))
+            rers.append((r, mean, rmse, std, deg))
+
+            # OUTPUT
+            # return Y
 
     return rers
-
-    # OUTPUT
-    # return Y.T
-
-df = mu.loadPieces()
-mu.quantizeDf(df)
-data = mu.toStateMatrix(df, 29, 91)
 
 def gridSearch():
     print('Starting grid search for optimal values for the echo network...')
@@ -144,12 +147,29 @@ def gridSearch():
                 regs = [0.01, 0.1, 1, 10, 100]
                 rers = predict(29, 91, lr, ins, sr, regs)
                 for rer in rers:
-                    reg, mean, rmse, std = rer
-                    gs.append((lr, ins, sr, reg, mean, rmse, std))
-                    gsd = pd.DataFrame(gs, columns=['lr', 'ins', 'sr', 'reg', 'mean', 'rmse', 'std'])
+                    reg, mean, rmse, std, deg = rer
+                    gs.append((lr, ins, sr, reg, mean, rmse, std, deg))
+                    gsd = pd.DataFrame(gs, columns=['lr', 'ins', 'sr', 'reg', 'mean', 'rmse', 'std', 'deg'])
 
     print('Grid search done!')
     gsd.to_csv('gridsearch.csv')
 
-gridSearch()
-# rers = predict(29, 91)
+def getColdiff():
+    my_file = Path('coldiff.npy')
+    if not my_file.is_file():
+        coldiff = np.array([data.mean(1)]).transpose()
+        np.save('coldiff.npy', coldiff)
+    else:
+        coldiff = np.load('coldiff.npy')
+    return coldiff
+
+df = mu.loadPieces()
+mu.quantizeDf(df)
+data = mu.toStateMatrix(df, 29, 91)
+coldiff = getColdiff()
+
+# gridSearch()
+# out = predict(29, 91, degs=(1, 1.5, 5))
+out = predict(29, 91, regs=[1, 100], degs=(1, 2, 3))
+# tuples = mu.state2Tuples(out, 29)
+# mu.tuples2Midi(tuples)
