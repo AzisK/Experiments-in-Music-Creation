@@ -146,23 +146,26 @@ def toStateMatrix(df, minp=0, maxp=127, quant=60):
       stateMatrix[pitch, int(on / quant) : int(off / quant + 1)] = 1
   return stateMatrix
 
-def state2Tuples(stateMatrix):
+def state2Tuples(stateMatrix, minp):
   data = []
-  notes = np.zeros(128, dtype=int)
-  for index, state in enumerate(stateMatrix):
-      for i in range(128):
-        if index != 0:
-          if state[i] == 0:
-              if stateMatrix[index - 1, i] == 1:
-                  notes[i] = 0
-                  time = index - 1
-                  data.append((147, i, 0, time))
-        if state[i] == 1:
-          if notes[i] != 1:
-              notes[i] = 1
-              time = index
-              data.append((147, i, 70, time))
-          
+  heights = np.shape(stateMatrix)[0]
+  notes = np.zeros(heights, dtype=int)
+
+  lengths = np.shape(stateMatrix)[1]
+  for step in range(lengths):
+    for note, state in enumerate(stateMatrix[:, step]):
+      if step != 0:
+        if state == 0:
+          if stateMatrix[note, step - 1] == 1:
+            notes[note] = 0
+            time = step - 1
+            data.append((147, note + minp, 0, time))
+      if state == 1:
+        if notes[note] != 1:
+          notes[note] = 1
+          time = step
+          data.append((147, note + minp, 70, time))
+
   sortedData = sorted(data, key=lambda x: x[-1])
   return sortedData
 
