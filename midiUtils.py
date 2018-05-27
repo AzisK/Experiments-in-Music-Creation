@@ -170,34 +170,41 @@ def state2Tuples(stateMatrix, minp):
   return sortedData
 
 def tuples2Midi(messages, filename='Midi.mid'):
-    song = mido.MidiFile()
-    track = mido.MidiTrack()
-    song.tracks.append(track)
-    time = 0
-    for message in messages:
-        message = np.asarray(message)
-        now = message[-1]
-        delta = now - time
-        time = now
-        message[-1] = delta
-        msg = mido.Message.from_bytes(message[:3])
-        msg.time = delta
-        track.append(msg)
-    song.save(filename)
+  print('Initialising MIDI file {}'.format(filename))
+  song = mido.MidiFile()
+  track = mido.MidiTrack()
+  song.tracks.append(track)
+  time = 0
+  for message in messages:
+    message = np.asarray(message)
+    now = message[-1]
+    delta = now - time
+    time = now
+    message[-1] = delta
+    msg = mido.Message.from_bytes(message[:3])
+    msg.time = delta
+    track.append(msg)
+  song.save(filename)
 
-def quantize(tick, quant):
+def quantize(tick1, tick2, quant):
+  tickOn = False
+  ticks = []
+  for tick in [tick1, tick2]:
     res = tick % quant
     if res != 0:
-        if res < (quant / 2):
-            tick -= res
-        if res >= (quant / 2):
-            tick += (quant - res)
-    return tick
+      if res < (quant / 2):
+        tick -= res
+      if res >= (quant / 2):
+        tick += (quant - res)
+    if tickOn and tick == ticks[0]:
+        tick = ticks[0] + quant
+    ticks.append(tick)
+    tickOn = True
+  return ticks[0], ticks[1]
 
 def findLength(on, off):
-    return off - on
+  return off - on
 
 def quantizeDf(df, quant=60):
-    df['on'] = df['on'].apply(lambda x: quantize(x, quant))
-    df['off'] = df['off'].apply(lambda x: quantize(x, quant))
-    df['length'] = df.apply(lambda x: findLength(x['on'], x['off']), axis=1)
+  df['on', 'off'] = df.apply(lambda x: quantize(x['on'], x['off'], quant), axis=1)
+  df['length'] = df.apply(lambda x: findLength(x['on'], x['off']), axis=1)
