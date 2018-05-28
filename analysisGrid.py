@@ -17,18 +17,23 @@ from pathlib import Path
 # df = pd.read_csv('gridsearch.edge8.csv')
 # df = pd.read_csv('gridsearch.edge10.csv')
 # df = pd.read_csv('gridsearch.edge11.csv')
-# df = pd.read_csv('gridsearch.sigm.1.csv')
 # df = pd.read_csv('gridsearch.sigm.2.csv')
 # df = pd.read_csv('gridsearch.sigm.3.csv')
 # df = pd.read_csv('gridsearch.sigm.4.csv')
 # df = pd.read_csv('gridsearch.sigm.5.csv')
+# df = pd.read_csv('gridsearch.sigmq.1.csv')
+# df = pd.read_csv('gridsearch.sigmq.2.csv')
+# df = pd.read_csv('gridsearch.zero.1.csv')
+# df = pd.read_csv('gridsearch.hand.1.csv')
+# df = pd.read_csv('gridsearch.hand.2.csv')
 
 def getCsvs():
   # Set the path
   path = Path('.')
   # Return all midis in the path
-  return list(path.glob('gridsearch.edge*.csv'))
-  # return list(path.glob('gridsearch.sigm*.csv'))
+  # return list(path.glob('gridsearch.edge*.csv'))
+  # return list(path.glob('gridsearch.sigm.*.csv'))
+  return list(path.glob('gridsearch.sigmq.*.csv'))
 
 def loadCsvs():
 	frames = []
