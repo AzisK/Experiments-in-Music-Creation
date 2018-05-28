@@ -62,14 +62,17 @@ def getStats():
 
   mean = data.mean()
   coldiff = data - np.array([data.mean(1)]).transpose()
+  colmax = 63 * data.mean(1).max()
   std = np.mean(np.sqrt(np.square(coldiff)))
-  print("MEAN: {0}, STD: {1}".format(mean, std))
+  print("MEAN: {0}, STD: {1}, COLMAX: {2}".format(mean, std, colmax))
 
-def getLengthsPercent():
+def plotLengths():
+  df = mu.loadPieces()
   mu.quantizeDf(df)
   A = df.groupby('length')['length'].count()
-  print(A)
+  return(A)
 
+# print(plotLengths())
 
 # getNotesHist()
 # getNotesRighHist()
@@ -82,5 +85,5 @@ def getLengthsPercent():
 getLengthQuantHist()
 # getNotesBounds()
 
-# getStats()
 # getLengthsPercent()
+# getStats()
