@@ -143,10 +143,14 @@ def toStateMatrix(df, minp=0, maxp=127, quant=60):
       pitch = row[1] - minp
       on = row[2]
       off = row[3]
-      stateMatrix[pitch, int(on / quant) : int(off / quant + 1)] = 1
+      hand = row[5]
+      if hand == 1:
+        stateMatrix[pitch, int(on / quant) : int(off / quant + 1)] = 1
+      elif hand == 0:
+        stateMatrix[pitch, int(on / quant) : int(off / quant + 1)] = -1
   return stateMatrix
 
-def state2Tuples(stateMatrix, minp):
+def state2Tuples(stateMatrix, minp, quant):
   data = []
   heights = np.shape(stateMatrix)[0]
   notes = np.zeros(heights, dtype=int)
@@ -156,14 +160,14 @@ def state2Tuples(stateMatrix, minp):
     for note, state in enumerate(stateMatrix[:, step]):
       if step != 0:
         if state == 0:
-          if stateMatrix[note, step - 1] == 1:
+          if stateMatrix[note, step - 1]:
             notes[note] = 0
-            time = step - 1
+            time = (step - 1) * quant
             data.append((147, note + minp, 0, time))
-      if state == 1:
-        if notes[note] != 1:
+      if state != 0:
+        if notes[note] == 0:
           notes[note] = 1
-          time = step
+          time = step * quant
           data.append((147, note + minp, 70, time))
 
   sortedData = sorted(data, key=lambda x: x[-1])
@@ -186,25 +190,30 @@ def tuples2Midi(messages, filename='Midi.mid'):
     track.append(msg)
   song.save(filename)
 
-def quantize(tick1, tick2, quant):
-  tickOn = False
-  ticks = []
-  for tick in [tick1, tick2]:
-    res = tick % quant
-    if res != 0:
-      if res < (quant / 2):
-        tick -= res
-      if res >= (quant / 2):
-        tick += (quant - res)
-    if tickOn and tick == ticks[0]:
-        tick = ticks[0] + quant
-    ticks.append(tick)
-    tickOn = True
-  return ticks[0], ticks[1]
+def quantizeOn(tick, quant=60):
+  res = tick % quant
+  if res != 0:
+    if res < (quant / 2):
+      tick -= res
+    if res >= (quant / 2):
+      tick += (quant - res)
+  return tick
+
+def quantizeOff(tickOn, tick, quant=60):
+  res = tick % quant
+  if res != 0:
+    if res < (quant / 2):
+      tick -= res
+    if res >= (quant / 2):
+      tick += (quant - res)
+  if tick == tickOn:
+    tick += quant
+  return tick
 
 def findLength(on, off):
   return off - on
 
 def quantizeDf(df, quant=60):
-  df['on', 'off'] = df.apply(lambda x: quantize(x['on'], x['off'], quant), axis=1)
+  df['on'] = df.apply(lambda x: quantizeOn(x['on'], quant), axis=1)
+  df['off'] = df.apply(lambda x: quantizeOff(x['on'], x['off'], quant), axis=1)
   df['length'] = df.apply(lambda x: findLength(x['on'], x['off']), axis=1)
