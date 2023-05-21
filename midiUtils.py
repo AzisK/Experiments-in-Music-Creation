@@ -18,13 +18,15 @@ def readPieces():
   # Get pieces and iterate over them
   for piece in getPieces():
     # Get the dataframe and length of the piece 
-    df, time = readNotes(piece, time)
+    df_temp, time = readNotes(piece, time)
     # Append the dataframe to frames
-    frames.append(df)
+    frames.append(df_temp)
 
-  # Concatenate all the datarames into one
-  dfAll = pd.concat(frames)
-  dfAll.to_csv('music.csv', index=False)
+  df = pd.concat(frames)
+
+  df.to_csv('music.csv', index=False)
+
+  return df
 
 def isAnyHandOrPedal(trackName):
   if trackName == 'Piano right' or trackName == 'Piano left' or trackName == 'Pedal':
