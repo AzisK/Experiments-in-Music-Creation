@@ -139,7 +139,11 @@ def readNotes(piece, time=0):
 
   return pd.DataFrame(data, columns=['pitch', 'on', 'off', 'length', 'hand']), pieceLength
 
-def toStateMatrix(df, minp=0, maxp=127, quant=60):
+
+def toStateMatrix(df, minp=0, maxp=127, quant=60) -> np.ndarray:
+  min_pitch = df.pitch.min()
+  if minp < min_pitch:
+    raise Exception(f'Minimum pitch in the data is lower then the bounds! Minimum is {min_pitch} while bounds are {minp}')
   length = df['off'].values[-1]
   steps = int(length / quant)
   bounds = maxp + 1 - minp
@@ -150,9 +154,9 @@ def toStateMatrix(df, minp=0, maxp=127, quant=60):
       off = row[3]
       hand = row[5]
       if hand == 1:
-        stateMatrix[pitch, int(on / quant) : int(off / quant + 1)] = 1
+        stateMatrix[pitch, int(on / quant):int(off / quant + 1)] = 1
       elif hand == 0:
-        stateMatrix[pitch, int(on / quant) : int(off / quant + 1)] = -1
+        stateMatrix[pitch, int(on / quant):int(off / quant + 1)] = -1
   return stateMatrix
 
 def state2Tuples(stateMatrix, minp, quant):
