@@ -39,11 +39,12 @@ def getHandNumber(trackName):
     return 0
   else:
     print('ERROR. No hand returned: return 0 for "Piano left" or "Pedal" and 1 for "Piano right"')
+def loadPieces(force=False) -> pd.DataFrame:
+    if force:
+        return readPieces()
 
-def loadPieces(force=False):
-  if force:
-    readNotes(readPieces)
-  return pd.read_csv('music.csv', index_col=False)
+    return pd.read_csv('music.csv')
+
 
 def readNotes(piece, time=0):
   # Array of tuples to create a dataframe later
