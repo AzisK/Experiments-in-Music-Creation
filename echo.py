@@ -6,8 +6,10 @@ import midiUtils as mu
 from pathlib import Path
 from operator import itemgetter
 
+
 def sigmoid(x):
     return 1 / (1 + np.exp(-x))
+
 
 def predictNotes(y, deg, noteLengths, outSize):
     mnotes = []
@@ -82,163 +84,174 @@ def predictNotes(y, deg, noteLengths, outSize):
         if not n:
             noteLengths[i] = 0
 
-def predict(minp=0, maxp=127, lr = 0.02, ins = 0.00023, sr = 0.02, regs=[0.1], degs=(1, 1, 1)):
-    inSize = outSize = maxp + 1 - minp
-    resSize = 1000
-    print('Reservoir size is: {}'.format(resSize))
 
-    # Pick only the necessary elements
-    # data = data[:, minp : maxp + 1]
+class EchoNetwork:
+    def __init__(self, data, resSize=1000):
+        self.data = data
+        self.resSize = resSize
+        print('Initiating Echo State Network...)')
+        print(f'Reservoir size is: {resSize}')
 
-    # np.random.seed(123)
+    def predict(self, minp=0, maxp=127, lr=0.02, ins=0.00023, sr=0.02, regs=[0.1], degs=(1, 1, 1)):
+        inSize = outSize = maxp + 1 - minp
 
-    lengths = np.shape(data)[1]
-    train = round(lengths * 0.8)
-    test = lengths - train
-    init = 300
+        # Pick only the necessary elements
+        # data = data[:, minp : maxp + 1]
 
-    Win = (np.random.rand(resSize, 1 + inSize) - 0.5) * ins
-    W = np.random.rand(resSize, resSize) - 0.5 
+        # np.random.seed(123)
 
-    # for i in range(len(W)):
-    #     for j in range(len(W[i])):
-    #         if np.random.rand() < 0.1:
-    #             W[i, j] = 0
+        lengths = np.shape(self.data)[1]
+        train = round(lengths * 0.9)
+        test = lengths - train
+        init = 300
 
-    print('Computing spectral radius...')
+        Win = (np.random.rand(self.resSize, 1 + inSize) - 0.5) * ins
+        W = np.random.rand(self.resSize, self.resSize) - 0.5
 
-    rhoW = max(abs(np.linalg.eigvals(W)))
-    print('Maximum eigen-value: {}'.format(rhoW))
+        # for i in range(len(W)):
+        #     for j in range(len(W[i])):
+        #         if np.random.rand() < 0.1:
+        #             W[i, j] = 0
 
-    W *= sr / rhoW
-    print('Done! Spectral radius / rhoW: {0}'.format(sr / rhoW))
+        print('Computing spectral radius...')
 
-    # Allocated memory for the design (collected states) matrix
-    X = np.zeros((train - init, 1 + inSize + resSize))
+        rhoW = max(abs(np.linalg.eigvals(W)))
+        print('Maximum eigen-value: {}'.format(rhoW))
 
-    # Set the corresponding target matrix directly
-    Yt = data[:, init + 1 : train + 1]
+        W *= sr / rhoW
+        print('Done! Spectral radius / rhoW: {0}'.format(sr / rhoW))
 
-    # Run the reservoir with the data and collect X
-    x = np.zeros((resSize, 1))
+        # Allocated memory for the design (collected states) matrix
+        X = np.zeros((train - init, 1 + inSize + self.resSize))
 
-    print('Starting training...')
-    for t in range(train):
-        u = np.array([data[:, t]]).transpose()
-        inps = np.dot(Win, np.vstack((1, u)))
-        x = (1 - lr) * x + lr * np.tanh(inps + np.dot(W, x))
+        # Set the corresponding target matrix directly
+        Yt = self.data[:, init + 1: train + 1]
 
-        if t >= init:
-            X[t - init, :] = np.vstack((1, u, x)).transpose()
+        # Run the reservoir with the data and collect X
+        x = np.zeros((self.resSize, 1))
 
-    print('Iterations done :)')
+        print('Starting training...')
+        for t in range(train):
+            u = np.array([self.data[:, t]]).transpose()
+            inps = np.dot(Win, np.vstack((1, u)))
+            x = (1 - lr) * x + lr * np.tanh(inps + np.dot(W, x))
 
-    z = x
+            if t >= init:
+                X[t - init, :] = np.vstack((1, u, x)).transpose()
 
-    # Train the output
-    selfie = np.dot(X.T, X)
-    
-    rers = []
+        print('Iterations done :)')
 
-    for r in regs:
-        print('Starting testing for regularization={}'.format(r))
+        z = x
 
-        inv = lin.inv(selfie + r * np.eye(1 + inSize + resSize))
-        fdback = np.dot(Yt, X)
+        # Train the output
+        selfie = np.dot(X.T, X)
 
-        print('Computing Wout...')
-        Wout = np.dot(fdback, inv)
+        rers = []
 
-        # Generate output matrix
-        Y = np.zeros((outSize, test))
+        for r in regs:
+            print('Starting testing for regularization={}'.format(r))
 
-        for deg in np.linspace(degs[0], degs[1], degs[2], endpoint=True):
-            u = np.array([data[:, train]]).transpose()
-            noteLengths = np.zeros((outSize))
+            inv = lin.inv(selfie + r * np.eye(1 + inSize + self.resSize))
+            fdback = np.dot(Yt, X)
 
-            for t in range(test):
-                inps = np.dot(Win, np.vstack((1, u)))
+            print('Computing Wout...')
+            Wout = np.dot(fdback, inv)
 
-                if t == 0:
-                    x = z
+            # Generate output matrix
+            Y = np.zeros((outSize, test))
 
-                x = (1 - lr) * x + lr * np.tanh(inps + np.dot(W, x))
+            for deg in np.linspace(degs[0], degs[1], degs[2], endpoint=True):
+                u = np.array([self.data[:, train]]).transpose()
+                noteLengths = np.zeros((outSize))
 
-                y = np.dot(Wout, np.vstack((1, u, x)))
+                for t in range(test):
+                    inps = np.dot(Win, np.vstack((1, u)))
 
-                predictNotes(y, deg, noteLengths, outSize)
+                    if t == 0:
+                        x = z
 
-                Y[:, t] = y.transpose()
+                    x = (1 - lr) * x + lr * np.tanh(inps + np.dot(W, x))
 
-                # GENERATIVE:
-                u = y
+                    y = np.dot(Wout, np.vstack((1, u, x)))
 
-                # PREDICTIVE:
-                # u = np.array([data[:, train + t]]).transpose()
+                    predictNotes(y, deg, noteLengths, outSize)
 
-            # Compute MEAN, RMSE & STANDARD DEVATION
-            mean = Y.mean()
+                    Y[:, t] = y.transpose()
 
-            diff = data[:, train: train + test + 1] - Y[:, 0 : test]
-            # diff = data[:, train: train + test + 1]
-            se = np.square(diff)
-            rmse = np.mean(np.sqrt(se))
+                    # GENERATIVE:
+                    u = y
 
-            coldiff = Y - np.array([Y.mean(1)]).transpose()
-            std = np.mean(np.sqrt(np.square(coldiff)))
-            print("MEAN: {0}, RMSE: {1}, STD: {2}, reg: {3}, deg: {4}".format(mean, rmse, std, r, deg))
-            rers.append((r, mean, rmse, std, deg))
+                    # PREDICTIVE:
+                    # u = np.array([data[:, train + t]]).transpose()
 
-            # OUTPUT
-            return Y
+                # Compute MEAN, RMSE & STANDARD DEVATION
+                mean = Y.mean()
 
-    # return rers
+                diff = self.data[:, train: train + test + 1] - Y[:, 0:test]
+                # diff = data[:, train: train + test + 1]
+                se = np.square(diff)
+                rmse = np.mean(np.sqrt(se))
 
-def gridSearch():
-    print('Starting grid search for optimal values for the echo network...')
-    gs = []
-    for lr in np.linspace(0.02, 0.02, 1, endpoint=True):
-    # for lr in [0.025]:
-        for ins in np.linspace(0.000223, 0.00025, 3, endpoint=True):
-        # for ins in [0.00002]:
-            for sr in np.linspace(0.02, 0.02, 1, endpoint=True):
-            # for sr in [0.1]:
-                print('*')
-                print('Calculating the error for:')
-                print('*** lr={0}, ins={1}, sr={2}'.format(lr, ins, sr))
-                regs = [1, 0.1]
-                rers = predict(29, 91, lr, ins, sr, regs)
-                for rer in rers:
-                    reg, mean, rmse, std, deg = rer
-                    gs.append((lr, ins, sr, reg, mean, rmse, std, deg))
-                    # gs.append((lr, ins, sr, reg, mean, rmse, std))
+                coldiff = Y - np.array([Y.mean(1)]).transpose()
+                std = np.mean(np.sqrt(np.square(coldiff)))
+                print("MEAN: {0}, RMSE: {1}, STD: {2}, reg: {3}, deg: {4}".format(mean, rmse, std, r, deg))
+                rers.append((r, mean, rmse, std, deg))
 
-                    gsd = pd.DataFrame(gs, columns=['lr', 'ins', 'sr', 'reg', 'mean', 'rmse', 'std', 'deg'])
-                    # gsd = pd.DataFrame(gs, columns=['lr', 'ins', 'sr', 'reg', 'mean', 'rmse', 'std'])
+                # OUTPUT
+                return Y
 
-    print('Grid search done!')
-    gsd.to_csv('gridsearch.hand.3.csv', index=False)
+        # return rers
 
-def getColdiff():
-    my_file = Path('coldiff.npy')
-    if not my_file.is_file():
-        coldiff = np.array([data.mean(1)]).transpose()
-        np.save('coldiff.npy', coldiff)
+    def getColdiff(self):
+        my_file = Path('coldiff.npy')
+        if not my_file.is_file():
+            coldiff = np.array([self.data.mean(1)]).transpose()
+            np.save('coldiff.npy', coldiff)
+        else:
+            coldiff = np.load('coldiff.npy')
+        return coldiff
+
+    def gridSearch(self):
+        print('Starting grid search for optimal values for the echo network...')
+        gs = []
+        for lr in np.linspace(0.02, 0.02, 1, endpoint=True):
+            for ins in np.linspace(0.000223, 0.00025, 3, endpoint=True):
+                for sr in np.linspace(0.02, 0.02, 1, endpoint=True):
+                    print('*')
+                    print('Calculating the error for:')
+                    print('*** lr={0}, ins={1}, sr={2}'.format(lr, ins, sr))
+                    regs = [1, 0.1]
+                    rers = self.predict(29, 91, lr, ins, sr, regs)
+                    for rer in rers:
+                        reg, mean, rmse, std, deg = rer
+                        gs.append((lr, ins, sr, reg, mean, rmse, std, deg))
+
+                        gsd = pd.DataFrame(gs, columns=['lr', 'ins', 'sr', 'reg', 'mean', 'rmse', 'std', 'deg'])
+
+        print('Grid search done!')
+        gsd.to_csv('gridsearch.hand.3.csv', index=False)
+
+
+def load_midi_state(quant=60, force=False) -> np.ndarray:
+    file_name = 'MidiStateMatrix.npy'
+    if force:
+        df = mu.loadPieces(force=force)
+        mu.quantizeDf(df, quant=quant)
+        data = mu.toStateMatrix(df, 29, 91, quant=quant)
+        np.save(file_name, data)
+        return data
     else:
-        coldiff = np.load('coldiff.npy')
-    return coldiff
+        return np.load(file_name)
 
-df = mu.loadPieces()
-mu.quantizeDf(df)
-data = mu.toStateMatrix(df, 29, 91)
 
-# coldiff = getColdiff()
-# print(coldiff)
+if __name__ == '__main__':
+    QUANT = 60
 
-# gridSearch()
-out = predict(29, 91, degs=(1, 1, 1))
-# print(out)
-# out = predict(29, 91, regs=[1, 100], degs=(1, 1.4, 5))
-# out = predict(29, 91, regs=[100], degs=(1.125, 1.125, 1))
-tuples = mu.state2Tuples(out, 29, 60)
-# mu.tuples2Midi(tuples, 'Midi1.05.mid')
+    midi_state = load_midi_state(quant=QUANT, force=True)
+
+    echo_network = EchoNetwork(midi_state)
+
+    generated_state = echo_network.predict(29, 91, degs=(1, 1, 1))
+
+    tuples = mu.state2Tuples(generated_state, 29, quant=QUANT)
+    mu.tuples2Midi(tuples, 'MidiOriginal.mid')
