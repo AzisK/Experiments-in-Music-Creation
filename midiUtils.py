@@ -160,7 +160,7 @@ def toStateMatrix(df, minp=0, maxp=127, quant=60) -> np.ndarray:
         stateMatrix[pitch, int(on / quant):int(off / quant + 1)] = -1
   return stateMatrix
 
-def state2Tuples(stateMatrix, minp, quant):
+def state2Tuples(stateMatrix, minp, quant=60):
   data = []
   heights = np.shape(stateMatrix)[0]
   notes = np.zeros(heights, dtype=int)
