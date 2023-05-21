@@ -38,6 +38,7 @@ def isAnyHandOrPedal(trackName):
 def getHandNumber(trackName):
     if trackName == 'Piano right':
         return 1
+    elif trackName == 'Piano left' or trackName == 'Pedal':
         return 0
     else:
         print('ERROR. No hand returned: return 0 for "Piano left" or "Pedal" and 1 for "Piano right"')
